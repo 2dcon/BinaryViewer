@@ -1,0 +1,1 @@
+A simple GUI app used to visualize binary data. Built with Avalonia.
