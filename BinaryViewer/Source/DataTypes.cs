@@ -11,4 +11,5 @@ public enum DataType
     Uint64,
     Float,
     Double,
+    Hex,
 }

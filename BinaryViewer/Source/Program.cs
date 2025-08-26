@@ -221,12 +221,23 @@ public class App : Application
             IsChecked = false
         };
 
-        var searchResult = new TextBlock
+        var searchSequenceCheckBox = new CheckBox
+        {
+            Name = "SearchSequence",
+            Content = "Sequence",
+            IsVisible = true,
+            IsChecked = false
+        };
+
+        var searchResult = new TextBox
         {
             Name = "SearchResult",
             Text = "Search Result",
+            IsReadOnly = true,
             IsVisible = true,
-            Margin = new Thickness(0, 10, 0, 0)
+            Background = Avalonia.Media.Brushes.Transparent,
+            Margin = new Thickness(0, 10, 0, 0),
+
         };
 
         var searchButton = new Button
@@ -238,29 +249,49 @@ public class App : Application
         searchButton.Click += (sender, args) =>
         {
             if (_openedFileBytes.Length == 0) return;
+            if (searchInput.Text == null) return;
 
-            string query = searchInput.Text;
-            byte[] bytesToSearch = GetBytesToSeach((DataType?)searchType.SelectedItem, query, revertBytesCheckBox.IsChecked.Value);
-            if (bytesToSearch.Length == 0) return;
+            byte[] bytesToSearch;
+            List<string> results = [];
+            string queryText = searchInput.Text;
 
-            List<int> results = [];
+            if (searchSequenceCheckBox.IsChecked.GetValueOrDefault())
+            {
+                string[] queries = searchInput.Text.Split(',');
+                List<byte[]> bytesToSearchList = [];
+                foreach (string querry in queries)
+                {
+                    byte[] queryBytes = GetBytesToSeach((DataType?)searchType.SelectedItem, querry.Trim(), revertBytesCheckBox.IsChecked.Value);
+                    bytesToSearchList.Add(queryBytes);
+                }
+                bytesToSearch = [.. bytesToSearchList.SelectMany(b => b)];
+            }
+            else
+            {
+                string query = searchInput.Text;
+                bytesToSearch = GetBytesToSeach((DataType?)searchType.SelectedItem, query, revertBytesCheckBox.IsChecked.Value);
+                if (bytesToSearch.Length == 0) return;
+
+            }
             // Perform search
             for (int i = 0; i <= _openedFileBytes.Length - bytesToSearch.Length; i++)
             {
                 byte[] subArray = _openedFileBytes[i..(i + bytesToSearch.Length)];
                 if (bytesToSearch.SequenceEqual(subArray))
                 {
-                    results.Add(i);
+                    // both decimal and hex offset
+                    string idxStr = $"{i}/0x{i:X}";
+                    results.Add(idxStr);
                     // Optionally, you can also display the found data in the binaryDataBlock
                 }
             }
             if (results.Count == 0)
             {
-                searchResult.Text = $"{query} not found";
+                searchResult.Text = $"not found";
             }
             else
             {
-                searchResult.Text = $"Found at offset: {string.Join(", ", results)}";
+                searchResult.Text = string.Join(", ", results);
             }
         };
 
@@ -272,6 +303,7 @@ public class App : Application
                 searchInput,
                 searchType,
                 revertBytesCheckBox,
+                searchSequenceCheckBox,
                 searchButton,
                 searchResult
             }
@@ -491,10 +523,33 @@ public class App : Application
             case DataType.Double:
                 bytes = BitConverter.GetBytes(double.Parse(searchText));
                 break;
+            case DataType.Hex:
+                bytes = HexStringToByteArray(searchText);
+                break;
             default:
                 return [];
                 // break;
         };
         return revert ? [.. bytes.Reverse()] : bytes;
+    }
+
+    public static byte[] HexStringToByteArray(string hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+            return [];
+
+        // Remove any whitespace
+        hex = hex.Replace(" ", "").Replace("-", "");
+
+        if (hex.Length % 2 != 0)
+            throw new ArgumentException("Hex string must have an even length.");
+
+        byte[] bytes = new byte[hex.Length / 2];
+        for (int i = 0; i < hex.Length; i += 2)
+        {
+            bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+        }
+
+        return bytes;
     }
 }
